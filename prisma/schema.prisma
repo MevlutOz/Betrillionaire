@@ -1,0 +1,188 @@
+// Veritabanı bağlantısı
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// --- ENUMS (Sabit Değerler) ---
+// Veri bütünlüğü ve kodda hata yapmamak için status alanlarını Enum yaptık.
+enum Role {
+  USER
+  ADMIN
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  BET_STAKE
+  WIN_PAYOUT
+}
+
+enum CouponStatus {
+  PENDING
+  WON
+  LOST
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  POSTPONED
+}
+
+// --- MODELLER ---
+
+model User {
+  user_id       Int      @id @default(autoincrement())
+  email         String   @unique
+  password_hash String
+  name          String
+  balance       Decimal  @default(0.00) @db.Decimal(10, 2) // Para birimi hassasiyeti
+  is_admin      Boolean  @default(false)
+  created_at    DateTime @default(now())
+
+  // İlişkiler
+  transactions Transaction[]
+  coupons      Coupon[]
+  
+  @@map("users") // Tablo adı veritabanında 'users' olsun
+}
+
+model Transaction {
+  transaction_id Int             @id @default(autoincrement())
+  user_id        Int
+  amount         Decimal         @db.Decimal(10, 2)
+  type           TransactionType // Enum kullanımı
+  created_at     DateTime        @default(now())
+
+  user User @relation(fields: [user_id], references: [user_id])
+
+  @@map("transactions")
+}
+
+model League {
+  league_id Int    @id @default(autoincrement())
+  name      String
+  country   String
+
+  // İlişkiler
+  teams   Team[]
+  matches Match[]
+
+  @@map("leagues")
+}
+
+model Team {
+  team_id   Int    @id @default(autoincrement())
+  name      String
+  league_id Int
+  // logo_url String? // İleride ekleyebilirsin
+
+  league League @relation(fields: [league_id], references: [league_id])
+
+  // Bir takım ev sahibi veya deplasman olabilir
+  homeMatches Match[] @relation("HomeTeam")
+  awayMatches Match[] @relation("AwayTeam")
+  players     Player[]
+
+  @@map("teams")
+}
+
+model Player {
+  player_id  Int      @id @default(autoincrement())
+  name       String
+  position   String
+  birth_date DateTime
+  jersey_num Int
+  nation     String
+  team_id    Int
+
+  team  Team               @relation(fields: [team_id], references: [team_id])
+  stats PlayerMatchStats[]
+
+  @@map("players")
+}
+
+model Match {
+  match_id     Int         @id @default(autoincrement())
+  league_id    Int
+  home_team_id Int
+  away_team_id Int
+  match_date   DateTime
+  status       MatchStatus @default(SCHEDULED)
+  home_score   Int?        @default(0)
+  away_score   Int?        @default(0)
+
+  // İlişkiler
+  league   League @relation(fields: [league_id], references: [league_id])
+  homeTeam Team   @relation("HomeTeam", fields: [home_team_id], references: [team_id])
+  awayTeam Team   @relation("AwayTeam", fields: [away_team_id], references: [team_id])
+
+  odds  Odds[]
+  stats PlayerMatchStats[]
+  bets  Bet[] // Bir maç birden fazla kuponda (bahiste) yer alabilir
+
+  @@map("matches")
+}
+
+model Odds {
+  odds_id   Int     @id @default(autoincrement())
+  match_id  Int
+  bet_type  String  // Örn: "Match Result", "Over/Under 2.5"
+  odd_value Decimal @db.Decimal(5, 2)
+
+  match Match @relation(fields: [match_id], references: [match_id])
+
+  @@map("odds")
+}
+
+model PlayerMatchStats {
+  pmsi_id      Int @id @default(autoincrement())
+  player_id    Int
+  match_id     Int
+  goals        Int @default(0)
+  assists      Int @default(0)
+  yellow_cards Int @default(0)
+  red_cards    Int @default(0)
+  min_played   Int @default(0)
+
+  player Player @relation(fields: [player_id], references: [player_id])
+  match  Match  @relation(fields: [match_id], references: [match_id])
+
+  @@unique([player_id, match_id]) // Bir oyuncunun bir maçta sadece bir istatistik satırı olabilir
+  @@map("player_match_stats")
+}
+
+model Coupon {
+  coupon_id     Int          @id @default(autoincrement())
+  user_id       Int
+  total_odds    Decimal      @db.Decimal(10, 2)
+  stake         Decimal      @db.Decimal(10, 2)
+  potential_win Decimal      @db.Decimal(10, 2)
+  status        CouponStatus @default(PENDING)
+  created_at    DateTime     @default(now())
+
+  user User  @relation(fields: [user_id], references: [user_id])
+  bets Bet[]
+
+  @@map("coupons")
+}
+
+model Bet {
+  bet_id          Int    @id @default(autoincrement())
+  coupon_id       Int
+  match_id        Int
+  bet_type        String // O anki bahis türü
+  odd_value       Decimal @db.Decimal(5, 2) // Oran değişebilir, kupon oynandığı anki oranı buraya kopyalarız (Snapshot)
+  selected_option String // Örn: "1", "X", "2", "Over"
+
+  coupon Coupon @relation(fields: [coupon_id], references: [coupon_id])
+  match  Match  @relation(fields: [match_id], references: [match_id])
+
+  @@map("bets")
+}
