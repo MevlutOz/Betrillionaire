@@ -117,6 +117,8 @@ model Match {
   status       MatchStatus @default(SCHEDULED)
   home_score   Int?        @default(0)
   away_score   Int?        @default(0)
+  
+  season       String?     // YENİ: Sezon bilgisi (Örn: "2023-2024")
 
   // İlişkiler
   league   League @relation(fields: [league_id], references: [league_id])
@@ -125,7 +127,7 @@ model Match {
 
   odds  Odds[]
   stats PlayerMatchStats[]
-  bets  Bet[] // Bir maç birden fazla kuponda (bahiste) yer alabilir
+  bets  Bet[]
 
   @@map("matches")
 }

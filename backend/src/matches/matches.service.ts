@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CouponsService } from '../coupons/coupons.service'; // Import et
+import { CouponsService } from '../coupons/coupons.service';
 
 @Injectable()
 export class MatchesService {
@@ -9,9 +9,12 @@ export class MatchesService {
     private couponsService: CouponsService 
   ) {}
 
-  // 1. Tüm Maçları Getir (Bülten)
+  // 1. Tüm Gelecek Maçları Getir (Bülten)
   async findAll() {
     return this.prisma.match.findMany({
+      where: {
+        status: 'SCHEDULED' // Sadece oynanmamış maçlar
+      },
       include: {
         homeTeam: true,
         awayTeam: true,
@@ -43,7 +46,21 @@ export class MatchesService {
     return match;
   }
 
-  // 3. MAÇI MANUEL BİTİR (SETTLEMENT TRIGGER)
+  // 3. SEZONA GÖRE MAÇLARI GETİR (ARŞİV FİLTRESİ) - EKSİK OLAN KISIM BUYDU
+  async findBySeason(season: string) {
+    return this.prisma.match.findMany({
+      where: { season: season },
+      include: {
+        homeTeam: true,
+        awayTeam: true,
+        league: true,
+        odds: true,
+      },
+      orderBy: { match_date: 'desc' } // En yeni maç en üstte
+    });
+  }
+
+  // 4. MAÇI MANUEL BİTİR (SETTLEMENT TRIGGER)
   async finishMatch(matchId: number, homeScore: number, awayScore: number) {
     // A. Maçı Güncelle (Skor ve Statü)
     const match = await this.prisma.match.update({
@@ -56,22 +73,20 @@ export class MatchesService {
     });
 
     console.log(`Maç #${matchId} bitti: ${homeScore}-${awayScore}. Kuponlar taranıyor...`);
-
-    // --- EKSİK OLAN KISIM BURASIYDI ---
     
     // B. Bu maçı içeren ve hala "PENDING" olan kuponları bul
     const pendingCoupons = await this.prisma.coupon.findMany({
       where: {
         status: 'PENDING',
         bets: {
-          some: { match_id: matchId } // İçinde bu maç olan kuponlar
+          some: { match_id: matchId }
         }
       }
     });
 
     console.log(`${pendingCoupons.length} adet kupon yeniden değerlendirilecek.`);
 
-    // C. Her kuponu tek tek hesapla (Evaluate)
+    // C. Her kuponu tek tek hesapla
     for (const coupon of pendingCoupons) {
       await this.couponsService.evaluateCoupon(coupon.coupon_id);
     }

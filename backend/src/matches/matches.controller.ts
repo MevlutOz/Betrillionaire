@@ -1,23 +1,33 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { MatchesService } from './matches.service';
 
 @Controller('matches')
 export class MatchesController {
   constructor(private readonly matchesService: MatchesService) {}
 
+  // --- 1. SEZON FİLTRESİ (YENİ EKLENEN KISIM) ---
+  // GET http://localhost:3000/matches/filter?season=2024-2025
+  // ÖNEMLİ: Bu fonksiyon :id'den ÖNCE gelmeli!
+  @Get('filter')
+  findBySeason(@Query('season') season: string) {
+    return this.matchesService.findBySeason(season);
+  }
+
+  // --- 2. BÜLTEN (TÜM GELECEK MAÇLAR) ---
   // GET http://localhost:3000/matches
   @Get()
   findAll() {
     return this.matchesService.findAll();
   }
 
+  // --- 3. MAÇ DETAYI ---
   // GET http://localhost:3000/matches/1
-  // ParseIntPipe: URL'den gelen "1" stringini sayıya (int) çevirir (Type Casting)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.matchesService.findOne(id);
   }
 
+  // --- 4. MAÇ SONUÇLANDIRMA (ADMİN) ---
   // POST http://localhost:3000/matches/1/finish
   @Post(':id/finish')
   finishMatch(
