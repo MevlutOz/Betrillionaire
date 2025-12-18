@@ -1,12 +1,12 @@
 version: '3.8'
 services:
   db:
-    image: postgres:15
+    image: postgres:18
     container_name: betrillionaire_db
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: mevlut2003
-      POSTGRES_DB: betrillionaire
+      POSTGRES_PASSWORD: hasan1
+      POSTGRES_DB: bet
     ports:
       - '5432:5432'
     volumes:

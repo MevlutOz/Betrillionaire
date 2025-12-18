@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { MatchesService } from './matches.service';
+import { UseGuards } from '@nestjs/common';
+import { AdminGuard } from '../guards/admin.guard'; // Yolu kontrol et
 
 @Controller('matches')
 export class MatchesController {
@@ -29,7 +31,9 @@ export class MatchesController {
 
   // --- 4. MAÇ SONUÇLANDIRMA (ADMİN) ---
   // POST http://localhost:3000/matches/1/finish
+  // --- 4. MAÇ SONUÇLANDIRMA (SADECE ADMIN) ---
   @Post(':id/finish')
+  @UseGuards(AdminGuard) // <--- BEKÇİ BURADA
   finishMatch(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { homeScore: number; awayScore: number }

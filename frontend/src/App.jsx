@@ -6,6 +6,7 @@ import MyCoupons from './pages/MyCoupons'; // Yeni
 import Wallet from './pages/Wallet';
 import Leagues from './pages/Leagues';
 import LeagueDetails from './pages/LeagueDetails';
+import AdminPanel from './pages/AdminPanel';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/wallet" element={<Wallet />} />
         <Route path="/leagues" element={<Leagues />} />
         <Route path="/leagues/premier-league" element={<LeagueDetails />} />
+        <Route path="/admin" element={<AdminPanel />} />
       </Routes>
     </Router>
   );

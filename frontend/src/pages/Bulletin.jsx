@@ -114,6 +114,14 @@ export default function Bulletin() {
           <button onClick={() => navigate('/my-coupons')} style={{ ...styles.headerBtn, color: colors.greyText }}>🎫 Kuponlarım</button>
           <button onClick={() => navigate('/leagues')} style={{ ...styles.headerBtn, color: colors.greyText }}>🏆 Ligler</button>
           <button onClick={() => navigate('/wallet')} style={{ ...styles.headerBtn, color: colors.greyText }}>💰 Cüzdanım</button>
+          {user?.isAdmin && (
+            <button 
+              onClick={() => navigate('/admin')} 
+              style={{ ...styles.headerBtn, color: '#FF5252', borderBottom: '3px solid #FF5252' }}
+            >
+              🛡️ Admin
+            </button>
+          )}
         </nav>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ textAlign: 'right' }}>

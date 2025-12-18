@@ -58,15 +58,20 @@ export class AuthService {
     }
 
     // Token (JWT) oluştur
-    const payload = { sub: user.user_id, email: user.email, role: user.is_admin ? 'admin' : 'user' };
-    
+    const payload = {
+      sub: user.user_id,
+      email: user.email,
+      isAdmin: user.is_admin,
+    };
+
     return {
       access_token: await this.jwtService.signAsync(payload),
       user: {
         id: user.user_id,
         name: user.name,
-        balance: user.balance
-      }
+        balance: user.balance,
+        isAdmin: user.is_admin,
+      },
     };
   }
 }
