@@ -7,6 +7,7 @@ import Wallet from './pages/Wallet';
 import Leagues from './pages/Leagues';
 import LeagueDetails from './pages/LeagueDetails';
 import AdminPanel from './pages/AdminPanel';
+import Results from './pages/Results'; 
 
 function App() {
   return (
@@ -20,7 +21,7 @@ function App() {
         <Route path="/bulletin" element={<Bulletin />} />
         <Route path="/my-coupons" element={<MyCoupons />} />
         <Route path="/dashboard" element={<Navigate to="/bulletin" replace />} /> {/* Eski linkler bozulmasın diye */}
-
+        <Route path="/results" element={<Results />} />
         <Route path="/wallet" element={<Wallet />} />
         <Route path="/leagues" element={<Leagues />} />
         <Route path="/leagues/premier-league" element={<LeagueDetails />} />

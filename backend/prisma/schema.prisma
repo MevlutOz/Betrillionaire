@@ -69,11 +69,11 @@ model League {
   league_id Int    @id @default(autoincrement())
   name      String
   country   String
-
+  logo      String?
   // İlişkiler
   teams   Team[]
   matches Match[]
-
+  standings Standing[]
   @@map("leagues")
 }
 
@@ -81,7 +81,7 @@ model Team {
   team_id   Int    @id @default(autoincrement())
   name      String
   league_id Int
-  // logo_url String? // İleride ekleyebilirsin
+  logo      String?
 
   league League @relation(fields: [league_id], references: [league_id])
 
@@ -89,6 +89,7 @@ model Team {
   homeMatches Match[] @relation("HomeTeam")
   awayMatches Match[] @relation("AwayTeam")
   players     Player[]
+  standings   Standing[]
 
   @@map("teams")
 }
@@ -187,4 +188,26 @@ model Bet {
   match  Match  @relation(fields: [match_id], references: [match_id])
 
   @@map("bets")
+}
+
+model Standing {
+  id            Int @id @default(autoincrement())
+  rank          Int
+  points        Int
+  form          String?
+  played        Int
+  won           Int
+  draw          Int
+  lost          Int
+  goals_for     Int
+  goals_against Int
+  goals_diff    Int
+  
+  league_id     Int
+  team_id       Int
+
+  league        League @relation(fields: [league_id], references: [league_id])
+  team          Team   @relation(fields: [team_id], references: [team_id])
+
+  @@map("standings")
 }

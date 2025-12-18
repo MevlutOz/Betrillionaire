@@ -6,6 +6,7 @@ import { CouponsModule } from './coupons/coupons.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { SyncModule } from './sync/sync.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { LeaguesModule } from './leagues/leagues.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     TransactionsModule,
     SyncModule,
     PrismaModule,
+    LeaguesModule,
   ],
 })
 export class AppModule {}

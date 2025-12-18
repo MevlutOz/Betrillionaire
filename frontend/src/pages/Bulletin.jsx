@@ -12,6 +12,28 @@ const colors = {
   white: '#FFFFFF',
   bgLight: '#F4F6F8'
 };
+// STİL TANIMLARI (Bu kısım eksik olduğu için hata alıyorsun)
+const styles = {
+  headerBtn: {
+    padding: '10px 20px',
+    cursor: 'pointer',
+    border: 'none',
+    backgroundColor: 'transparent',
+    fontSize: '1em',
+    fontWeight: 'bold',
+    color: '#8A8EA6',
+    borderBottom: '3px solid transparent',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: '16px',
+    boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
+    overflow: 'hidden',
+    transition: 'transform 0.2s, box-shadow 0.2s',
+    border: '1px solid #f0f0f0',
+    // cursor: 'pointer' özelliğini zaten kodun içinde inline olarak ekledik
+  }
+};
 
 export default function Bulletin() {
   const [user, setUser] = useState(null);
@@ -19,6 +41,7 @@ export default function Bulletin() {
   const [coupon, setCoupon] = useState([]); 
   const [stake, setStake] = useState(100);
   const [loading, setLoading] = useState(true);
+  const [selectedMatch, setSelectedMatch] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -99,6 +122,23 @@ export default function Bulletin() {
     return odd ? odd.odd_value : null;
   };
 
+  const groupMatchesByLeague = (matches) => {
+    return matches.reduce((acc, match) => {
+      const leagueId = match.league.league_id;
+      // Eğer bu lig henüz listede yoksa başlık bilgisini ekle
+      if (!acc[leagueId]) {
+        acc[leagueId] = {
+          info: match.league, // Ligin adı ve logosu burada
+          matches: []
+        };
+      }
+      // Maçı ilgili ligin listesine at
+      acc[leagueId].matches.push(match);
+      return acc;
+    }, {});
+  };
+
+  const groupedMatches = groupMatchesByLeague(matches);
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: colors.bgLight, color: colors.primaryDark }}>Yükleniyor...</div>;
 
   return (
@@ -114,6 +154,7 @@ export default function Bulletin() {
           <button onClick={() => navigate('/my-coupons')} style={{ ...styles.headerBtn, color: colors.greyText }}>🎫 Kuponlarım</button>
           <button onClick={() => navigate('/leagues')} style={{ ...styles.headerBtn, color: colors.greyText }}>🏆 Ligler</button>
           <button onClick={() => navigate('/wallet')} style={{ ...styles.headerBtn, color: colors.greyText }}>💰 Cüzdanım</button>
+          <button onClick={() => navigate('/results')} style={{ ...styles.headerBtn, color: colors.greyText }}>🏁 Sonuçlar</button>
           {user?.isAdmin && (
             <button 
               onClick={() => navigate('/admin')} 
@@ -139,39 +180,104 @@ export default function Bulletin() {
       {/* GÖVDE */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         
-        {/* SOL: MAÇ LİSTESİ */}
+        {/* SOL: MAÇ LİSTESİ (LIG GRUPLU) */}
         <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
-          <h2 style={{ color: colors.primaryDark, marginBottom: '20px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>Güncel Bülten</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '25px' }}>
-            {matches.map((match) => (
-              <div key={match.match_id} style={styles.card}>
-                <div style={{ padding: '15px', backgroundColor: '#fafafa', borderBottom: `1px solid #eee`, display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.8em', color: colors.primaryDark, fontWeight: 'bold', textTransform: 'uppercase' }}>🏁 {match.league.name}</span>
-                  <span style={{ fontSize: '0.8em', color: colors.greyText }}>{new Date(match.match_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+          
+          <h2 style={{ color: colors.primaryDark, marginBottom: '20px', borderBottom: '2px solid #e0e0e0', paddingBottom: '10px' }}>
+            Güncel Bülten
+          </h2>
+
+          {/* GRUPLANMIŞ LİGLERİ DÖNÜYORUZ */}
+          {Object.keys(groupedMatches).length === 0 ? (
+             <div style={{textAlign:'center', padding:'20px', color:'#999'}}>Şu an bültende maç yok.</div>
+          ) : (
+            Object.values(groupedMatches).map((group) => (
+              <div key={group.info.league_id} style={{ marginBottom: '35px' }}>
+                
+                {/* LİG BAŞLIĞI */}
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '15px', 
+                  marginBottom: '15px',
+                  padding: '10px 15px',
+                  backgroundColor: '#fff',
+                  borderRadius: '12px',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.03)',
+                  borderLeft: `5px solid ${colors.tealSuccess}`
+                }}>
+                  {/* Logo varsa göster, yoksa emoji koy */}
+                  {group.info.logo ? (
+                    <img src={group.info.logo} alt={group.info.name} style={{ width: '30px', height: '30px', objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ fontSize: '1.5em' }}>🏆</span>
+                  )}
+                  <h3 style={{ margin: 0, color: colors.primaryDark, fontSize: '1.1em' }}>{group.info.name}</h3>
+                  <span style={{ fontSize: '0.8em', color: colors.greyText, marginTop:'2px' }}>({group.info.country || 'Dünya'})</span>
                 </div>
-                <div style={{ padding: '20px', textAlign: 'center' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <span style={{ fontWeight: 'bold', color: '#333', width: '40%', textAlign: 'right', fontSize:'1.1em' }}>{match.homeTeam.name}</span>
-                    <span style={{ backgroundColor: colors.secondaryDark, color: colors.tealSuccess, padding: '5px 10px', borderRadius: '6px', fontSize: '0.9em', fontWeight:'bold' }}>VS</span>
-                    <span style={{ fontWeight: 'bold', color: '#333', width: '40%', textAlign: 'left', fontSize:'1.1em' }}>{match.awayTeam.name}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    {['Mac Sonucu 1', 'Mac Sonucu X', 'Mac Sonucu 2'].map((type, idx) => {
-                      const val = getOddValue(match.odds, type);
-                      if (!val) return null;
-                      const active = isSelected(match.match_id, type);
-                      return (
-                        <button key={idx} onClick={() => addToCoupon(match, type, val)} style={{ flex: 1, padding: '12px 5px', borderRadius: '8px', border: active ? `1px solid ${colors.accentBlue}` : '1px solid #e0e0e0', cursor: 'pointer', backgroundColor: active ? colors.accentBlue : colors.white, color: active ? colors.white : colors.primaryDark, transition: 'all 0.2s', boxShadow: active ? '0 4px 12px rgba(85, 80, 242, 0.4)' : '0 2px 5px rgba(0,0,0,0.05)', transform: active ? 'translateY(-2px)' : 'none' }}>
-                          <div style={{ fontSize: '0.75em', opacity: active ? 0.9 : 0.6, marginBottom: '4px' }}>{type === 'Mac Sonucu 1' ? '1' : type === 'Mac Sonucu X' ? 'X' : '2'}</div>
-                          <div style={{ fontWeight: 'bold', fontSize: '1.1em' }}>{val}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+
+                {/* BU LİGE AİT MAÇLAR (GRID YAPISI) */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '20px' }}>
+                  {group.matches.map((match) => (
+                    <div 
+                    key={match.match_id} 
+                    style={{...styles.card, cursor: 'pointer'}}
+                    onClick={() => setSelectedMatch(match)}
+                    >
+                      
+                      {/* Kart Üst Bilgi */}
+                      <div style={{ padding: '10px 15px', backgroundColor: '#fafafa', borderBottom: `1px solid #eee`, display: 'flex', justifyContent: 'space-between', fontSize:'0.85em', color: colors.greyText }}>
+                        <span>{new Date(match.match_date).toLocaleDateString('tr-TR')}</span>
+                        <span style={{fontWeight:'bold', color: colors.primaryDark}}>{new Date(match.match_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      </div>
+                      
+                      {/* Takımlar ve Oranlar */}
+                      <div style={{ padding: '20px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                          <span style={{ fontWeight: 'bold', color: '#333', width: '40%', textAlign: 'right', fontSize:'1.1em' }}>{match.homeTeam.name}</span>
+                          <span style={{ backgroundColor: 'rgba(66, 31, 115, 0.1)', color: colors.primaryDark, padding: '5px 10px', borderRadius: '6px', fontSize: '0.8em', fontWeight:'bold' }}>VS</span>
+                          <span style={{ fontWeight: 'bold', color: '#333', width: '40%', textAlign: 'left', fontSize:'1.1em' }}>{match.awayTeam.name}</span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {['Mac Sonucu 1', 'Mac Sonucu X', 'Mac Sonucu 2'].map((type, idx) => {
+                            const val = getOddValue(match.odds, type);
+                            if (!val) return null;
+                            const active = isSelected(match.match_id, type);
+                            return (
+                              <button 
+                                key={idx}
+                                onClick={(e) => {
+                                  e.stopPropagation(); // 1. Tıklamayı burada hapset (Popup açılmasın)
+                                  addToCoupon(match, type, val); // 2. Kupon işlemini yap
+                                }}
+                                style={{ 
+                                  flex: 1, 
+                                  padding: '10px 5px', 
+                                  borderRadius: '8px', 
+                                  border: active ? `1px solid ${colors.accentBlue}` : '1px solid #e0e0e0', 
+                                  cursor: 'pointer', 
+                                  backgroundColor: active ? colors.accentBlue : colors.white, 
+                                  color: active ? colors.white : colors.primaryDark,
+                                  transition: 'all 0.2s',
+                                  boxShadow: active ? '0 4px 12px rgba(85, 80, 242, 0.4)' : 'none',
+                                  display: 'flex', flexDirection:'column', alignItems:'center', gap:'2px'
+                                }}
+                              >
+                                <span style={{ fontSize: '0.7em', opacity: 0.6 }}>{idx === 0 ? 'MS 1' : idx === 1 ? 'MS X' : 'MS 2'}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>{val}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            ))
+          )}
         </div>
 
         {/* SAĞ: KUPON SEPETİ */}
@@ -195,11 +301,91 @@ export default function Bulletin() {
           </div>
         </div>
       </div>
+      {selectedMatch && (
+        <MatchDetailModal 
+          match={selectedMatch} 
+          onClose={() => setSelectedMatch(null)} 
+          addToCoupon={addToCoupon}
+          isSelected={isSelected}
+          getOddValue={getOddValue}
+        />
+      )}
     </div>
   );
 }
+// --- MATCH DETAIL MODAL COMPONENT ---
+const MatchDetailModal = ({ match, onClose, addToCoupon, isSelected, getOddValue }) => {
+  if (!match) return null;
 
-const styles = {
-  headerBtn: { padding: '0 15px', height: '100%', backgroundColor: 'transparent', border: 'none', borderBottom: '3px solid transparent', cursor: 'pointer', fontSize: '0.95em', fontWeight: 'bold', transition: 'all 0.2s' },
-  card: { backgroundColor: '#fff', borderRadius: '16px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', overflow: 'hidden', border: '1px solid rgba(0,0,0,0.02)' }
+  const sections = [
+    { title: "Maç Sonucu", types: [{k:'Mac Sonucu 1', l:'MS 1'}, {k:'Mac Sonucu X', l:'MS X'}, {k:'Mac Sonucu 2', l:'MS 2'}] },
+    { title: "İlk Yarı Sonucu", types: [{k:'IY 1', l:'İY 1'}, {k:'IY X', l:'İY X'}, {k:'IY 2', l:'İY 2'}] },
+    { title: "Toplam Gol 2.5", types: [{k:'Alt 2.5', l:'Alt'}, {k:'Ust 2.5', l:'Üst'}] },
+    { title: "Karşılıklı Gol", types: [{k:'KG Var', l:'Var'}, {k:'KG Yok', l:'Yok'}] },
+  ];
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000,
+      display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(5px)'
+    }} onClick={onClose}>
+      
+      <div style={{
+        backgroundColor: '#fff', width: '90%', maxWidth: '600px', maxHeight: '90vh',
+        borderRadius: '16px', overflowY: 'auto', position: 'relative',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+      }} onClick={e => e.stopPropagation()}>
+        
+        {/* Header */}
+        <div style={{ backgroundColor: '#421F73', padding: '20px', color: 'white', borderTopLeftRadius:'16px', borderTopRightRadius:'16px', position:'sticky', top:0, zIndex:10 }}>
+          <button onClick={onClose} style={{position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'white', fontSize:'1.5em', cursor:'pointer'}}>✕</button>
+          <div style={{textAlign:'center', fontSize:'0.9em', opacity:0.8}}>{match.league.name}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginTop: '10px' }}>
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:'1.2em', fontWeight:'bold'}}>{match.homeTeam.name}</div>
+            </div>
+            <div style={{fontSize:'0.9em', backgroundColor:'rgba(255,255,255,0.2)', padding:'5px 10px', borderRadius:'10px'}}>VS</div>
+            <div style={{textAlign:'center'}}>
+               <div style={{fontSize:'1.2em', fontWeight:'bold'}}>{match.awayTeam.name}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bahis Seçenekleri */}
+        <div style={{ padding: '20px' }}>
+          {sections.map((sec, i) => (
+            <div key={i} style={{ marginBottom: '25px' }}>
+              <h4 style={{ color: '#555', borderLeft: '4px solid #5550F2', paddingLeft: '10px', marginBottom: '10px' }}>{sec.title}</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sec.types.length}, 1fr)`, gap: '10px' }}>
+                {sec.types.map((type) => {
+                  const val = getOddValue(match.odds, type.k);
+                  if (!val) return null;
+                  const active = isSelected(match.match_id, type.k);
+                  return (
+                    <button 
+                      key={type.k}
+                      onClick={() => addToCoupon(match, type.k, val)}
+                      style={{ 
+                        padding: '12px', borderRadius: '8px', cursor: 'pointer',
+                        border: active ? '1px solid #5550F2' : '1px solid #eee',
+                        backgroundColor: active ? '#5550F2' : '#f9f9f9',
+                        color: active ? 'white' : '#333',
+                        display:'flex', flexDirection:'column', alignItems:'center', gap:'4px'
+                      }}
+                    >
+                      <span style={{fontSize:'0.8em', opacity: active?0.9:0.6}}>{type.l}</span>
+                      <span style={{fontWeight:'bold', fontSize:'1.1em'}}>{val}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+      
+    </div>
+  );
 };

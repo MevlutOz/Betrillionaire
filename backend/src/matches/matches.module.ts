@@ -4,14 +4,15 @@ import { MatchesController } from './matches.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CouponsModule } from '../coupons/coupons.module';
 import { AuthModule } from '../auth/auth.module'; // EKLE
+import { PrismaService } from '../prisma/prisma.service'; 
 
 @Module({
   imports: [
     PrismaModule, 
     CouponsModule, 
-    AuthModule // BURAYA EKLE (Artık JwtService'i tanıyacak)
+    AuthModule 
   ], 
   controllers: [MatchesController],
-  providers: [MatchesService],
+  providers: [MatchesService, PrismaService],
 })
 export class MatchesModule {}

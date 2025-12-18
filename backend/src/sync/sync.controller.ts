@@ -5,18 +5,29 @@ import { SyncService } from './sync.service';
 export class SyncController {
   constructor(private readonly syncService: SyncService) {}
 
-  // GET http://localhost:3000/sync/fixtures
+  // 1. Maçları Çek (Fixtures)
   @Get('fixtures')
   async syncFixtures() {
-    // İşlem uzun sürdüğü için log ekleyelim
-    console.log("Fikstür senkronizasyonu tetiklendi...");
+    console.log("⏳ Fikstür senkronizasyonu başladı...");
     return await this.syncService.syncFixtures();
   }
 
-  // GET http://localhost:3000/sync/clear
+  // 2. Puan Durumunu Çek (Standings) - BU EKSİKTİ
+  @Get('standings')
+  async syncStandings() {
+    console.log("⏳ Puan durumu senkronizasyonu başladı...");
+    return await this.syncService.syncStandings();
+  }
+
+  // 3. Temizlik
   @Get('clear')
   async clearFixtures() {
-    console.log("Temizlik işlemi tetiklendi...");
+    console.log("🧹 Temizlik başladı...");
     return await this.syncService.clearFixtures();
+  }
+  // MAÇ SONUÇLARINI ÇEK
+  @Get('results')
+  async syncResults() {
+    return await this.syncService.syncResults();
   }
 }

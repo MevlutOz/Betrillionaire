@@ -8,7 +8,28 @@ export class MatchesService {
     private prisma: PrismaService,
     private couponsService: CouponsService 
   ) {}
+  // src/matches/matches.service.ts içine:
 
+  async getRecentResults() {
+    console.log("🔍 DB Sorgusu Başlıyor: Statüsü 'FINISHED' olan maçlar aranıyor...");
+
+    const results = await this.prisma.match.findMany({
+      where: {
+        status: 'FINISHED' // Burası veritabanındakiyle BİREBİR aynı olmalı (Büyük harf)
+      },
+      include: {
+        homeTeam: true, // Takım isimleri için şart
+        awayTeam: true,
+        league: true
+      },
+      orderBy: {
+        match_date: 'desc'
+      },
+    });
+
+    console.log(`✅ DB Sorgusu Bitti: Toplam ${results.length} maç bulundu.`);
+    return results;
+  }
   // 1. Tüm Gelecek Maçları Getir (Bülten)
   async findAll() {
     return this.prisma.match.findMany({
