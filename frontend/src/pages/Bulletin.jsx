@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-
+import { BiFootball, BiTrophy, BiWallet } from "react-icons/bi"; 
+import { RiCoupon3Line } from "react-icons/ri"; 
+import { MdOutlineHistory } from "react-icons/md";
+import { RiAdminLine } from "react-icons/ri"; 
 // --- RENK PALETİ ---
 const colors = {
   primaryDark: '#421F73',
@@ -150,11 +153,11 @@ export default function Bulletin() {
           <img src="/betrillionaire.png" alt="Betrillionaire" style={{ height: '50px', objectFit: 'contain' }} />
         </div>
         <nav style={{ display: 'flex', gap: '10px' }}>
-          <button style={{ ...styles.headerBtn, color: colors.white, borderBottom: `3px solid ${colors.tealSuccess}` }}>⚽ Bülten</button>
-          <button onClick={() => navigate('/my-coupons')} style={{ ...styles.headerBtn, color: colors.greyText }}>🎫 Kuponlarım</button>
-          <button onClick={() => navigate('/leagues')} style={{ ...styles.headerBtn, color: colors.greyText }}>🏆 Ligler</button>
-          <button onClick={() => navigate('/wallet')} style={{ ...styles.headerBtn, color: colors.greyText }}>💰 Cüzdanım</button>
-          <button onClick={() => navigate('/results')} style={{ ...styles.headerBtn, color: colors.greyText }}>🏁 Sonuçlar</button>
+          <button onClick={() => navigate('/bulletin')} style={{ ...styles.headerBtn, display:'flex', alignItems:'center', gap:'5px' }}><BiFootball size={20} /> Bülten</button> 
+          <button onClick={() => navigate('/my-coupons')} style={{ ...styles.headerBtn, display:'flex', alignItems:'center', gap:'5px' }}><RiCoupon3Line size={20} /> Kuponlarım</button>
+          <button onClick={() => navigate('/leagues')} style={{ ...styles.headerBtn, display:'flex', alignItems:'center', gap:'5px' }}><BiTrophy size={20} /> Ligler</button>
+          <button onClick={() => navigate('/wallet')} style={{ ...styles.headerBtn, display:'flex', alignItems:'center', gap:'5px' }}><BiWallet size={20} /> Cüzdanım</button>
+          <button onClick={() => navigate('/results')} style={{ ...styles.headerBtn, display:'flex', alignItems:'center', gap:'5px' }}><MdOutlineHistory size={22} /> Sonuçlar</button>
           {user?.isAdmin && (
             <button 
               onClick={() => navigate('/admin')} 

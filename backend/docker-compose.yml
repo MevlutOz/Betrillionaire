@@ -5,10 +5,10 @@ services:
     container_name: betrillionaire_db
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: hasan1
+      POSTGRES_PASSWORD: kral123
       POSTGRES_DB: bet
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
