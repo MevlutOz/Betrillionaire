@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { BiFootball, BiTrophy, BiWallet } from "react-icons/bi";
 import { RiCoupon3Line } from "react-icons/ri";
 import { MdOutlineHistory } from "react-icons/md";
+const API_URL = import.meta.env.VITE_API_URL;
 
 // --- RENK PALETİ (Diğer sayfalarla birebir uyumlu) ---
 const colors = {
@@ -42,7 +43,7 @@ export default function Results() {
   const fetchResults = async () => {
     try {
       // DÜZELTME: Senin kodundaki doğru endpoint'i kullandık
-      const response = await axios.get('http://localhost:3000/matches/results');
+      const response = await axios.get(`${API_URL}/matches/results`);
       setMatches(response.data);
       setLoading(false);
     } catch (error) {

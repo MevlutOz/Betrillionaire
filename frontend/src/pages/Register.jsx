@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // --- RENK PALETİ ---
 const colors = {
@@ -21,13 +22,14 @@ export default function Register() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.post('http://localhost:3000/auth/register', formData);
-      alert('Kayıt Başarılı! Giriş sayfasına yönlendiriliyorsunuz.');
-      navigate('/login');
-    } catch (error) {
-      alert('Hata: ' + (error.response?.data?.message || error.message));
+  e.preventDefault();
+  try {
+    // localhost yerine API_URL kullanıyoruz
+    await axios.post(`${API_URL}/auth/register`, formData);
+    alert('Kayıt Başarılı! Giriş sayfasına yönlendiriliyorsunuz.');
+    navigate('/login');
+  } catch (error) {
+    alert('Hata: ' + (error.response?.data?.message || error.message));
     }
   };
 

@@ -7,6 +7,6 @@ import { CouponsService } from "./coupons.service";
   controllers: [CouponsController],
   providers: [CouponsService],
   imports: [PrismaModule],
-  exports: [CouponsService] // BU SATIR ÖNEMLİ
+  exports: [CouponsService] 
 })
 export class CouponsModule {}

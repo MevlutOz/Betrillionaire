@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const colors = {
   primaryDark: '#421F73',
@@ -27,7 +28,7 @@ export default function LeagueDetails() {
   const fetchMatchesBySeason = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:3000/matches/filter?season=${season}`);
+      const response = await axios.get(`${API_URL}/matches/filter?season=${season}`);
       setMatches(response.data);
     } catch (error) {
       console.error(error);

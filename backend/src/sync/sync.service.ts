@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { CouponsService } from '../coupons/coupons.service'; 
 import axios from 'axios';
 
 @Injectable()
@@ -9,7 +10,8 @@ export class SyncService {
 
   constructor(
     private prisma: PrismaService,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private couponsService: CouponsService
   ) {}
 
   // HEDEF LİGLER
@@ -17,146 +19,187 @@ export class SyncService {
     { id: 271, name: 'Superliga', country: 'Denmark' },     
     { id: 501, name: 'Premiership', country: 'Scotland' },  
   ];
-
-  // --- 1. MAÇ SONUÇLARINI GÜNCELLEME (YENİ ÖZELLİK) ---
-  // Geçmiş 30 günün biten maçlarını tarar, skorları günceller ve maçı bitirir.
-  // --- 1. MAÇ SONUÇLARINI ÇEK (GEÇMİŞİ DOLDURMA MODU) ---
-  async syncResults() {
+  /*
+  async debugMatch(matchId: number) {
     const apiToken = this.configService.get<string>('SPORTMONKS_API_TOKEN');
     const apiUrl = this.configService.get<string>('SPORTMONKS_API_URL');
     
-    // Son 30 günü tara
-    const today = new Date();
-    const pastDate = new Date();
-    pastDate.setDate(today.getDate() - 30);
+    console.log(`🕵️‍♂️ TEK MAÇ SORGULANIYOR: ID ${matchId}`);
+    
+    try {
+        // Direkt ID ile API'ye soruyoruz
+        const url = `${apiUrl}/football/fixtures/${matchId}`;
+        const response = await axios.get(url, {
+            params: { 
+                api_token: apiToken,
+                include: 'scores;state;participants' // Bize lazım olanlar
+            }
+        });
 
-    const dateFrom = pastDate.toISOString().split('T')[0];
-    const dateTo = today.toISOString().split('T')[0];
+        const data = response.data.data;
+        
+        console.log("------------------------------------------------");
+        console.log(`🏠 Ev Sahibi: ${data.participants.find((p:any)=>p.meta.location==='home').name}`);
+        console.log(`✈️ Deplasman: ${data.participants.find((p:any)=>p.meta.location==='away').name}`);
+        console.log(`📅 Tarih: ${data.starting_at}`);
+        console.log(`⚡ DURUM (State): ${data.state?.state}`); // En önemlisi bu!
+        console.log(`⚽ SKORLAR:`, JSON.stringify(data.scores, null, 2));
+        console.log("------------------------------------------------");
 
-    this.logger.log(`🏁 Geçmiş Maçlar Taranıyor ve Ekleniyor (${dateFrom} - ${dateTo})...`);
-    let totalProcessed = 0;
+        return data;
+    } catch (error) {
+        console.error("HATA:", error.response?.data || error.message);
+    }
+  }
+  
+    */
+   // SONUÇLARI GÜNCELLEME
+  async syncResults() {
+  const apiToken = this.configService.get<string>('SPORTMONKS_API_TOKEN');
+  const apiUrl = this.configService.get<string>('SPORTMONKS_API_URL');
 
-    for (const target of this.TARGET_LEAGUES) {
+  const today = new Date();
+  const pastDate = new Date();
+  pastDate.setDate(today.getDate() - 2); 
+  const dateFrom = pastDate.toISOString().split('T')[0];
+  const dateTo = today.toISOString().split('T')[0];
+
+  console.log(`⚽ MATCH RESULT SYNC (${dateFrom} - ${dateTo})`);
+
+  let totalProcessed = 0;
+
+  // Skor fallback fonksiyonu
+  const getScore = (scores: any[], participant: 'home' | 'away'): number | null => {
+    if (!scores) return null;
+
+    const scoreItem = scores.find(
+      s =>
+        ['CURRENT', 'FINAL', 'TOTAL'].includes(s.description) &&
+        s.score?.participant === participant
+    );
+
+    return scoreItem?.score?.goals ?? null;
+  };
+
+  for (const target of this.TARGET_LEAGUES) {
+    try {
+      const response = await axios.get(
+        `${apiUrl}/football/fixtures/between/${dateFrom}/${dateTo}`,
+        {
+          params: {
+            api_token: apiToken,
+            leagues: target.id,
+            include: 'participants'
+          }
+        }
+      );
+
+      const fixtures = response.data.data;
+      if (!fixtures || fixtures.length === 0) continue;
+
+      for (const f of fixtures) {
         try {
-            // API'den skorları iste
-            const url = `${apiUrl}/football/fixtures/between/${dateFrom}/${dateTo}`;
-            const response = await axios.get(url, {
-                params: { 
-                    api_token: apiToken, 
-                    leagues: target.id,
-                    include: 'participants;scores;state;league.country' 
-                }
+          
+          const fixtureResponse = await axios.get(
+            `${apiUrl}/football/fixtures/${f.id}`,
+            {
+              params: {
+                api_token: apiToken,
+                include: 'scores;state;participants;season'
+              }
+            }
+          );
+
+          const fixture = fixtureResponse.data.data;
+          if (!fixture) continue;
+
+          const homeScore = getScore(fixture.scores, 'home');
+          const awayScore = getScore(fixture.scores, 'away');
+
+          // ⏳ Skor yoksa maç hâlâ finalize edilmemiştir
+          if (homeScore === null || awayScore === null) {
+            console.log(`⏳ Skor yok → atlandı (ID: ${fixture.id})`);
+            continue;
+          }
+
+          // MAÇI BUL
+          let existingMatch = await this.prisma.match.findUnique({
+            where: { api_id: fixture.id }
+          });
+
+          if (!existingMatch) {
+            const homePart = fixture.participants.find((p: any) => p.meta?.location === 'home');
+            const awayPart = fixture.participants.find((p: any) => p.meta?.location === 'away');
+
+            if (!homePart || !awayPart) continue;
+
+            const dbHome = await this.prisma.team.findFirst({
+              where: { OR: [{ api_id: homePart.id }, { name: homePart.name }] }
             });
 
-            const fixtures = response.data.data;
-            if (!fixtures || fixtures.length === 0) {
-                this.logger.warn(`${target.name}: Bu tarih aralığında maç bulunamadı.`);
-                continue;
+            const dbAway = await this.prisma.team.findFirst({
+              where: { OR: [{ api_id: awayPart.id }, { name: awayPart.name }] }
+            });
+
+            if (!dbHome || !dbAway) continue;
+
+            existingMatch = await this.prisma.match.findFirst({
+              where: {
+                home_team_id: dbHome.team_id,
+                away_team_id: dbAway.team_id,
+                status: 'SCHEDULED'
+              }
+            });
+          }
+
+          if (!existingMatch) continue;
+
+          const htHome =
+            fixture.scores?.find(
+              (s: any) =>
+                s.description === '1ST_HALF' && s.score?.participant === 'home'
+            )?.score?.goals ?? 0;
+
+          const htAway =
+            fixture.scores?.find(
+              (s: any) =>
+                s.description === '1ST_HALF' && s.score?.participant === 'away'
+            )?.score?.goals ?? 0;
+
+          console.log(
+            `✅ RESULT: ${existingMatch.match_id} → ${homeScore}-${awayScore}`
+          );
+
+          await this.prisma.match.update({
+            where: { match_id: existingMatch.match_id },
+            data: {
+              api_id: fixture.id,
+              status: 'FINISHED',
+              home_score: homeScore,
+              away_score: awayScore,
+              ht_home_score: htHome,
+              ht_away_score: htAway,
+              season: fixture.season?.name || '2025-2026'
             }
+          });
 
-            this.logger.log(`${target.name}: API'den ${fixtures.length} adet geçmiş maç geldi. İşleniyor...`);
+          await this.couponsService.processMatchResults(existingMatch.match_id);
 
-            for (const item of fixtures) {
-                // Sadece BİTMİŞ maçları al
-                const state = item.state?.state;
-                if (state !== 'FT' && state !== 'AET' && state !== 'FT_PEN') continue;
-
-                // Takımları Ayrıştır
-                const homePart = item.participants.find((p: any) => p.meta?.location === 'home');
-                const awayPart = item.participants.find((p: any) => p.meta?.location === 'away');
-                if (!homePart || !awayPart) continue;
-
-                // Ligi Bul/Oluştur
-                const leagueName = item.league?.name || target.name;
-                const countryName = item.league?.country?.name || target.country;
-                let league = await this.prisma.league.findFirst({ where: { name: leagueName } });
-                if (!league) {
-                    league = await this.prisma.league.create({ 
-                        data: { name: leagueName, country: countryName, logo: item.league?.image_path } 
-                    });
-                }
-
-                // Takımları Bul/Oluştur
-                let dbHome = await this.prisma.team.findFirst({ where: { name: homePart.name } });
-                if (!dbHome) dbHome = await this.prisma.team.create({ data: { name: homePart.name, logo: homePart.image_path, league_id: league.league_id } });
-
-                let dbAway = await this.prisma.team.findFirst({ where: { name: awayPart.name } });
-                if (!dbAway) dbAway = await this.prisma.team.create({ data: { name: awayPart.name, logo: awayPart.image_path, league_id: league.league_id } });
-
-                // SKORU BUL
-                let homeScore = 0;
-                let awayScore = 0;
-
-                // SportMonks v3 Score Parsing
-                // Önce "CURRENT" var mı bak, yoksa skor arrayinden participant'a göre çek
-                const currentScoreObj = item.scores?.find((s: any) => s.description === 'CURRENT');
-                if (currentScoreObj) {
-                     // Bazen score: { goals: X } bazen string dönebilir, v3 genelde obje döner.
-                     // Ama en garantisi scores arrayini filtrelemektir.
-                }
-
-                // Skorları en güvenli şekilde çekme:
-                const hScoreItem = item.scores?.find((s:any) => s.description === 'CURRENT' && s.score?.participant === 'home');
-                const aScoreItem = item.scores?.find((s:any) => s.description === 'CURRENT' && s.score?.participant === 'away');
-                
-                if (hScoreItem) homeScore = hScoreItem.score.goals;
-                if (aScoreItem) awayScore = aScoreItem.score.goals;
-
-                // Eğer CURRENT bulamazsa 2ND_HALF'a bak (Bazen maç bitince oraya yazar)
-                if (!hScoreItem && !aScoreItem) {
-                     const hAlt = item.scores?.find((s:any) => s.description === '2ND_HALF' && s.score?.participant === 'home');
-                     const aAlt = item.scores?.find((s:any) => s.description === '2ND_HALF' && s.score?.participant === 'away');
-                     if(hAlt) homeScore = hAlt.score.goals;
-                     if(aAlt) awayScore = aAlt.score.goals;
-                }
-
-                const matchDate = new Date(item.starting_at);
-
-                // DB'de Maç Var mı?
-                const existingMatch = await this.prisma.match.findFirst({
-                    where: {
-                        home_team_id: dbHome.team_id,
-                        away_team_id: dbAway.team_id,
-                        // Tarih kontrolünü esnek yapmamak için tam tarih kullanıyoruz
-                        // Aynı takımlar 30 gün içinde 2 kere maç yapmaz genelde.
-                        match_date: matchDate 
-                    }
-                });
-
-                if (existingMatch) {
-                    // VARSA GÜNCELLE
-                    if (existingMatch.status !== 'FINISHED') {
-                        await this.prisma.match.update({
-                            where: { match_id: existingMatch.match_id },
-                            data: { status: 'FINISHED', home_score: homeScore, away_score: awayScore }
-                        });
-                        totalProcessed++;
-                    }
-                } else {
-                    // YOKSA OLUŞTUR (BACKFILL) <-- İŞTE BU EKSİKTİ
-                    await this.prisma.match.create({
-                        data: {
-                            league_id: league.league_id,
-                            home_team_id: dbHome.team_id,
-                            away_team_id: dbAway.team_id,
-                            match_date: matchDate,
-                            status: 'FINISHED', // Geçmiş maç olduğu için direkt bitti
-                            home_score: homeScore,
-                            away_score: awayScore,
-                            season: '2025-2026' // API'den çekilebilir ama şimdilik sabit
-                        }
-                    });
-                    totalProcessed++;
-                }
-            }
-        } catch (error) {
-            this.logger.error(`Sonuç çekme hatası (${target.name}): ${error.message}`);
+          totalProcessed++;
+        } catch (innerError) {
+          console.error(`❌ Fixture Error (${f.id}):`, innerError.message);
         }
+      }
+    } catch (error) {
+      console.error(`❌ League Error (${target.name}):`, error.message);
     }
-    return { message: `${totalProcessed} adet geçmiş maç eklendi/güncellendi.` };
   }
 
-  // --- 2. PUAN DURUMU (STANDINGS) ---
+  return { message: `${totalProcessed} maç başarıyla sonuçlandırıldı.` };
+ }
+
+ 
+  // 2. PUAN DURUMU 
   async syncStandings() {
     const apiToken = this.configService.get<string>('SPORTMONKS_API_TOKEN');
     const apiUrl = this.configService.get<string>('SPORTMONKS_API_URL');
@@ -219,23 +262,37 @@ export class SyncService {
     return { message: "Puan durumları güncellendi." };
   }
 
-  // --- 3. FİKSTÜR SENKRONİZASYONU ---
+  //3.FİKSTÜR SENKRONİZASYONU
   async syncFixtures() {
     const apiToken = this.configService.get<string>('SPORTMONKS_API_TOKEN');
     const apiUrl = this.configService.get<string>('SPORTMONKS_API_URL');
     if (!apiToken) return { message: "API Token eksik." };
 
-    const today = new Date().toISOString().split('T')[0];
-    const next14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const startObj = new Date();
+    startObj.setDate(startObj.getDate() - 3); // 3 Gün Geri git
+    const dateFrom = startObj.toISOString().split('T')[0];
+    const endObj = new Date();
+    endObj.setDate(endObj.getDate() + 14);
+    const dateTo = endObj.toISOString().split('T')[0];
+
     let totalProcessed = 0;
     const resultsLog: string[] = [];
 
-    this.logger.log(`Sync Başlıyor (${today} - ${next14Days})...`);
+    this.logger.log(`Sync Başlıyor (ID Kurtarma + Fikstür) (${dateFrom} - ${dateTo})...`);
 
     for (const target of this.TARGET_LEAGUES) {
       try {
-        const url = `${apiUrl}/football/fixtures/between/${today}/${next14Days}`;
-        const response = await axios.get(url, { params: { api_token: apiToken, leagues: target.id, include: 'league.country;participants;odds' } });
+        const url = `${apiUrl}/football/fixtures/between/${dateFrom}/${dateTo}`;
+        
+        const response = await axios.get(url, { 
+            params: { 
+                api_token: apiToken, 
+                leagues: target.id, 
+                include: 'league.country;participants;odds;season' 
+            } 
+        });
+        
         const fixtures = response.data.data;
         if (!fixtures || fixtures.length === 0) continue;
 
@@ -245,47 +302,108 @@ export class SyncService {
           const awayParticipant = item.participants.find((p: any) => p.meta?.location === 'away');
           if (!homeParticipant || !awayParticipant) continue;
 
-          const homeName = homeParticipant.name; const awayName = awayParticipant.name;
-          const homeLogo = homeParticipant.image_path; const awayLogo = awayParticipant.image_path;
+          const homeName = homeParticipant.name; 
+          const awayName = awayParticipant.name;
+          const homeLogo = homeParticipant.image_path; 
+          const awayLogo = awayParticipant.image_path;
           const matchDateRaw = item.starting_at;
           const leagueName = item.league?.name || target.name;
           const countryName = item.league?.country?.name || target.country; 
           const leagueLogo = item.league?.image_path;
+          const seasonName = item.season?.name || '2025-2026';
 
-          let league = await this.prisma.league.findFirst({ where: { name: leagueName } });
-          if (!league) league = await this.prisma.league.create({ data: { name: leagueName, country: countryName, logo: leagueLogo } });
-          else if ((!league.logo && leagueLogo) || (league.country === 'World')) await this.prisma.league.update({ where: { league_id: league.league_id }, data: { logo: leagueLogo, country: countryName } });
+          // 1.LIG
+          let league = await this.prisma.league.findFirst({ 
+              where: { OR: [{ api_id: target.id }, { name: leagueName }] } 
+          });
+          if (!league) {
+              league = await this.prisma.league.create({ data: { api_id: target.id, name: leagueName, country: countryName, logo: leagueLogo } });
+          } else {
+              await this.prisma.league.update({ where: { league_id: league.league_id }, data: { api_id: target.id } });
+          }
 
-          let homeTeam = await this.prisma.team.findFirst({ where: { name: homeName } });
-          if (!homeTeam) homeTeam = await this.prisma.team.create({ data: { name: homeName, logo: homeLogo, league_id: league.league_id } });
-          else if (!homeTeam.logo && homeLogo) await this.prisma.team.update({ where: { team_id: homeTeam.team_id }, data: { logo: homeLogo } });
+          // 2.TAKIMLAR
+          // Ev Sahibi
+          let homeTeam = await this.prisma.team.findFirst({ where: { OR: [{ api_id: homeParticipant.id }, { name: homeName }] } });
+          if (!homeTeam) {
+              homeTeam = await this.prisma.team.create({ data: { api_id: homeParticipant.id, name: homeName, logo: homeLogo, league_id: league.league_id } });
+          } else if (!homeTeam.api_id) {
+              await this.prisma.team.update({ where: { team_id: homeTeam.team_id }, data: { api_id: homeParticipant.id } });
+          }
 
-          let awayTeam = await this.prisma.team.findFirst({ where: { name: awayName } });
-          if (!awayTeam) awayTeam = await this.prisma.team.create({ data: { name: awayName, logo: awayLogo, league_id: league.league_id } });
-          else if (!awayTeam.logo && awayLogo) await this.prisma.team.update({ where: { team_id: awayTeam.team_id }, data: { logo: awayLogo } });
+          // Deplasman
+          let awayTeam = await this.prisma.team.findFirst({ where: { OR: [{ api_id: awayParticipant.id }, { name: awayName }] } });
+          if (!awayTeam) {
+              awayTeam = await this.prisma.team.create({ data: { api_id: awayParticipant.id, name: awayName, logo: awayLogo, league_id: league.league_id } });
+          } else if (!awayTeam.api_id) {
+              await this.prisma.team.update({ where: { team_id: awayTeam.team_id }, data: { api_id: awayParticipant.id } });
+          }
 
+          // 3.MAÇ 
           const matchDate = new Date(matchDateRaw);
-          const existingMatch = await this.prisma.match.findFirst({ where: { home_team_id: homeTeam.team_id, away_team_id: awayTeam.team_id, match_date: matchDate } });
 
+          // A.ID ile ara
+          let existingMatch = await this.prisma.match.findUnique({
+              where: { api_id: item.id }
+          });
+
+          // B.ID yoksa, İsim ve Tarih ile ara 
           if (!existingMatch) {
+              existingMatch = await this.prisma.match.findFirst({
+                  where: {
+                      home_team_id: homeTeam.team_id,
+                      away_team_id: awayTeam.team_id,
+                      match_date: {
+                          // Gün bazında arama yapıyoruz
+                          gte: new Date(new Date(matchDate).setHours(0,0,0,0)),
+                          lte: new Date(new Date(matchDate).setHours(23,59,59,999))
+                      }
+                  }
+              });
+          }
+
+          if (existingMatch) {
+            console.log(`♻️ ID GÜNCELLENİYOR: ${homeName} vs ${awayName} -> ID: ${item.id}`);
+            
+            await this.prisma.match.update({
+                where: { match_id: existingMatch.match_id },
+                data: {
+                    api_id: item.id, 
+                    match_date: matchDate,
+                    season: seasonName,
+                    // Eğer maç API'de bitmişse burada durumu da güncelleyebiliriz ama
+                    // SyncResults zaten ID gelince bunu halledecek. Biz sadece ID'yi verelim yeter.
+                }
+            });
+          } else {
             const newMatch = await this.prisma.match.create({
               data: {
-                league_id: league.league_id, home_team_id: homeTeam.team_id, away_team_id: awayTeam.team_id,
-                match_date: matchDate, status: 'SCHEDULED', home_score: 0, away_score: 0, season: '2025-2026'
+                api_id: item.id,
+                league_id: league.league_id,
+                home_team_id: homeTeam.team_id,
+                away_team_id: awayTeam.team_id,
+                match_date: matchDate,
+                status: 'SCHEDULED', 
+                home_score: 0,
+                away_score: 0,
+                season: seasonName
               }
             });
+
             const realOdds = await this.processRealOdds(newMatch.match_id, item.odds);
             if (!realOdds) await this.generateSmartOdds(newMatch.match_id);
-            leagueCount++; totalProcessed++;
+            
+            leagueCount++; 
+            totalProcessed++;
           }
         }
-        resultsLog.push(`${target.name}: ${leagueCount} new`);
+        resultsLog.push(`${target.name}: ${leagueCount} processed`);
       } catch (error) { this.logger.error(`HATA (${target.name}): ${error.message}`); }
     }
-    return { message: 'Sync Completed', details: resultsLog, totalNewMatches: totalProcessed };
+    return { message: 'Sync Completed (Recovery Mode)', details: resultsLog, totalProcessed: totalProcessed };
   }
 
-  // --- YARDIMCI METOTLAR ---
+  // YARDIMCI METOTLAR
   async clearFixtures() {
     try {
       await this.prisma.odds.deleteMany({}); await this.prisma.bet.deleteMany({}); await this.prisma.coupon.deleteMany({});

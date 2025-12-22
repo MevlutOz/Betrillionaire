@@ -8,17 +8,16 @@ export class MatchesService {
     private prisma: PrismaService,
     private couponsService: CouponsService 
   ) {}
-  // src/matches/matches.service.ts içine:
 
   async getRecentResults() {
     console.log("🔍 DB Sorgusu Başlıyor: Statüsü 'FINISHED' olan maçlar aranıyor...");
 
     const results = await this.prisma.match.findMany({
       where: {
-        status: 'FINISHED' // Burası veritabanındakiyle BİREBİR aynı olmalı (Büyük harf)
+        status: 'FINISHED' 
       },
       include: {
-        homeTeam: true, // Takım isimleri için şart
+        homeTeam: true, 
         awayTeam: true,
         league: true
       },
@@ -30,11 +29,10 @@ export class MatchesService {
     console.log(`✅ DB Sorgusu Bitti: Toplam ${results.length} maç bulundu.`);
     return results;
   }
-  // 1. Tüm Gelecek Maçları Getir (Bülten)
   async findAll() {
     return this.prisma.match.findMany({
       where: {
-        status: 'SCHEDULED' // Sadece oynanmamış maçlar
+        status: 'SCHEDULED' 
       },
       include: {
         homeTeam: true,
@@ -67,7 +65,7 @@ export class MatchesService {
     return match;
   }
 
-  // 3. SEZONA GÖRE MAÇLARI GETİR (ARŞİV FİLTRESİ) - EKSİK OLAN KISIM BUYDU
+  // 3.SEZONA GÖRE MAÇLARI GETİR 
   async findBySeason(season: string) {
     return this.prisma.match.findMany({
       where: { season: season },
@@ -77,13 +75,12 @@ export class MatchesService {
         league: true,
         odds: true,
       },
-      orderBy: { match_date: 'desc' } // En yeni maç en üstte
+      orderBy: { match_date: 'desc' } 
     });
   }
 
-  // 4. MAÇI MANUEL BİTİR (SETTLEMENT TRIGGER)
+  // MAÇI MANUEL BİTİR 
   async finishMatch(matchId: number, homeScore: number, awayScore: number) {
-    // A. Maçı Güncelle (Skor ve Statü)
     const match = await this.prisma.match.update({
       where: { match_id: matchId },
       data: {
@@ -95,7 +92,6 @@ export class MatchesService {
 
     console.log(`Maç #${matchId} bitti: ${homeScore}-${awayScore}. Kuponlar taranıyor...`);
     
-    // B. Bu maçı içeren ve hala "PENDING" olan kuponları bul
     const pendingCoupons = await this.prisma.coupon.findMany({
       where: {
         status: 'PENDING',
@@ -107,7 +103,7 @@ export class MatchesService {
 
     console.log(`${pendingCoupons.length} adet kupon yeniden değerlendirilecek.`);
 
-    // C. Her kuponu tek tek hesapla
+    // Her kuponu tek tek hesapla
     for (const coupon of pendingCoupons) {
       await this.couponsService.evaluateCoupon(coupon.coupon_id);
     }

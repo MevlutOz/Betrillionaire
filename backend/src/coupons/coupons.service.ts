@@ -1,87 +1,145 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CouponsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createCouponDto: any) {
-    const { userId, stake, bets } = createCouponDto;
+  // --- MAÇ BİTİNCE TETİKLENEN FONKSİYON ---
+  async processMatchResults(matchId: number) {
+    console.log(`🎫 Maç ID: ${matchId} için kuponlar taranıyor...`);
 
-    // PRISMA TRANSACTION (Atomicity)
-    // Tüm işlemler tek bir paket halinde yapılır. Hata olursa hepsi geri alınır (Rollback).
-    return await this.prisma.$transaction(async (tx) => {
-      
-      // 1. Kullanıcının güncel bakiyesini kitle ve oku
-      const user = await tx.user.findUnique({
-        where: { user_id: userId },
-      });
-
-      if (!user) throw new BadRequestException('Kullanıcı bulunamadı');
-      
-      // Bakiye Yeterli mi?
-      if (user.balance.toNumber() < stake) {
-        throw new BadRequestException('Yetersiz Bakiye!');
+    const affectedCoupons = await this.prisma.coupon.findMany({
+      where: {
+        status: 'PENDING',
+        bets: {
+          some: { match_id: matchId }
+        }
       }
-
-      // 2. Toplam Oranı Hesapla (Güvenlik için backend'de tekrar hesaplanır)
-      // Şimdilik Frontend'den gelen oranı kabul ediyoruz ama normalde DB'den çekilmeli.
-      let totalOdds = 1.0;
-      bets.forEach(b => { totalOdds *= b.odd_value });
-
-      const potentialWin = stake * totalOdds;
-
-      // 3. Bakiyeyi Düş (Update Balance)
-      await tx.user.update({
-        where: { user_id: userId },
-        data: { balance: { decrement: stake } }, // Atomic Decrement
-      });
-
-      // 4. Finansal Kayıt At (Transaction Table)
-      await tx.transaction.create({
-        data: {
-          user_id: userId,
-          amount: stake,
-          type: 'BET_STAKE', // Enum: Kupon Ücreti
-        },
-      });
-
-      // 5. Kuponu ve İçindeki Bahisleri Oluştur
-      const newCoupon = await tx.coupon.create({
-        data: {
-          user_id: userId,
-          stake: stake,
-          total_odds: totalOdds,
-          potential_win: potentialWin,
-          status: 'PENDING',
-          bets: {
-            create: bets.map((bet) => ({
-              match_id: bet.match_id,
-              bet_type: bet.bet_type,
-              odd_value: bet.odd_value,
-              selected_option: bet.selected_option,
-            })),
-          },
-        },
-        include: { bets: true } // Geriye oluşturulan bahisleri de dön
-      });
-
-      return newCoupon;
     });
+
+    console.log(`🎫 ${affectedCoupons.length} adet etkilenen kupon bulundu.`);
+
+    for (const coupon of affectedCoupons) {
+      await this.evaluateCoupon(coupon.coupon_id);
+    }
   }
 
-  // Kullanıcının kuponlarını getir (Geçmiş)
+  // --- KUPON OLUŞTURMA (Create) ---
+  async create(createCouponDto: any) {
+    // 1. Gelen veriyi destructure et
+    const { userId, stake, bets } = createCouponDto;
+
+    // 2. Basit Validasyonlar
+    if (!userId) {
+      throw new BadRequestException('userId zorunlu (Frontend veriyi göndermiyor)');
+    }
+    if (!stake || stake <= 0) {
+      throw new BadRequestException('Geçersiz bahis tutarı');
+    }
+    if (!bets || bets.length === 0) {
+      throw new BadRequestException('Kuponda hiç maç yok');
+    }
+
+    try {
+      // 3. Transaction Başlat
+      return await this.prisma.$transaction(async (tx) => {
+        
+        // Kullanıcıyı bul
+        const user = await tx.user.findUnique({
+          where: { user_id: userId } // Prisma modelindeki alan adı (genelde user_id)
+        });
+
+        if (!user) throw new BadRequestException('Kullanıcı bulunamadı');
+
+        // Decimal dönüşümleri (Finansal işlemler için şart)
+        const stakeDecimal = new Prisma.Decimal(stake);
+
+        // Bakiye Kontrolü
+        if (new Prisma.Decimal(user.balance).lessThan(stakeDecimal)) {
+          throw new BadRequestException(`Yetersiz bakiye! Mevcut: ${user.balance}, İstenen: ${stake}`);
+        }
+
+        // Toplam Oran Hesaplama
+        let totalOdds = new Prisma.Decimal(1);
+        for (const bet of bets) {
+          totalOdds = totalOdds.mul(new Prisma.Decimal(bet.odd_value));
+        }
+
+        // Olası Kazanç
+        const potentialWin = stakeDecimal.mul(totalOdds);
+
+        // A. Kullanıcı Bakiyesini Düş
+        await tx.user.update({
+          where: { user_id: userId },
+          data: {
+            balance: { decrement: stakeDecimal }
+          }
+        });
+
+        // B. İşlem Geçmişi (Transaction Log) Oluştur
+        await tx.transaction.create({
+          data: {
+            user_id: userId,
+            amount: stakeDecimal,
+            type: 'BET_STAKE'
+          }
+        });
+
+        // C. Kuponu ve Bahisleri Oluştur
+        const newCoupon = await tx.coupon.create({
+          data: {
+            user_id: userId,
+            stake: stakeDecimal,
+            total_odds: totalOdds,
+            potential_win: potentialWin,
+            status: 'PENDING',
+            bets: {
+              create: bets.map((bet: any) => ({
+                match_id: Number(bet.match_id), // String gelme ihtimaline karşı Number()
+                bet_type: bet.bet_type,
+                odd_value: new Prisma.Decimal(bet.odd_value),
+                selected_option: bet.selected_option,
+                status: 'PENDING'
+              }))
+            }
+          },
+          include: { bets: true }
+        });
+
+        return newCoupon;
+      });
+
+    } catch (err) {
+      console.error('❌ Kupon Oluşturma Hatası:', err);
+      // Eğer hata bizim attığımız BadRequest ise aynen fırlat
+      if (err instanceof BadRequestException) {
+        throw err;
+      }
+      // Değilse genel hata fırlat
+      throw new InternalServerErrorException('Kupon oluşturulurken sunucu hatası: ' + err.message);
+    }
+  }
+
+  // --- KULLANICI KUPONLARI ---
   async findAllByUser(userId: number) {
     return this.prisma.coupon.findMany({
       where: { user_id: userId },
-      include: { bets: { include: { match: { include: { homeTeam: true, awayTeam: true } } } } },
+      include: { 
+        bets: { 
+          include: { 
+            match: { 
+              include: { homeTeam: true, awayTeam: true } 
+            } 
+          } 
+        } 
+      },
       orderBy: { created_at: 'desc' }
     });
   }
 
-  // ... (mevcut kodlar) ...
-
-  // KUPON DEĞERLENDİRME (Algorithm)
+  // --- KUPON DEĞERLENDİRME ---
   async evaluateCoupon(couponId: number) {
     const coupon = await this.prisma.coupon.findUnique({
       where: { coupon_id: couponId },
@@ -93,48 +151,54 @@ export class CouponsService {
     let allWon = true;
     let anyLost = false;
 
-    // Kupondaki her bahsi kontrol et
-    for (const bet of coupon.bets) {
-      const match = bet.match;
-
-      // Eğer maç hala oynanmadıysa, kupon sonuçlanamaz
-      if (match.status !== 'FINISHED') {
-        allWon = false; 
-        continue;
-      }
-
-      // Bahis kazandı mı?
-      const isBetWon = this.checkBetResult(bet.bet_type, match.home_score ?? 0, match.away_score ?? 0);
+    await this.prisma.$transaction(async (tx) => {
       
-      if (!isBetWon) {
-        anyLost = true; // Tek maçtan yatmak
-        break; // Döngüyü kır, daha bakmaya gerek yok
-      }
-    }
+      for (const bet of coupon.bets) {
+        const match = bet.match;
+        
+        if (match.status !== 'FINISHED') {
+          allWon = false; 
+          continue; 
+        }
 
-    // SONUÇLANDIRMA
-    if (anyLost) {
-      // KAYBETTİ
-      await this.prisma.coupon.update({
-        where: { coupon_id: couponId },
-        data: { status: 'LOST' }
-      });
-    } else if (allWon) {
-      // KAZANDI (Tüm maçlar bitmiş ve hepsi tutmuş)
-      // Transaction başlat: Statüyü güncelle VE parayı yatır
-      await this.prisma.$transaction(async (tx) => {
+        const isBetWon = this.checkBetResult(
+            bet.bet_type, 
+            Number(match.home_score ?? 0), 
+            Number(match.away_score ?? 0),
+            Number(match.ht_home_score ?? 0), 
+            Number(match.ht_away_score ?? 0)  
+        );
+        
+        if (bet.status === 'PENDING') {
+            await tx.bet.update({
+                where: { bet_id: bet.bet_id },
+                data: { status: isBetWon ? 'WON' : 'LOST' }
+            });
+        }
+
+        if (!isBetWon) {
+          anyLost = true;
+        }
+      }
+
+      if (anyLost) {
+        await tx.coupon.update({
+          where: { coupon_id: couponId },
+          data: { status: 'LOST' }
+        });
+        console.log(`❌ Kupon ID ${couponId} KAYBETTİ.`);
+
+      } else if (allWon) {
         await tx.coupon.update({
           where: { coupon_id: couponId },
           data: { status: 'WON' }
         });
 
-        // Kullanıcıya ödeme yap
         await tx.user.update({
           where: { user_id: coupon.user_id },
           data: { balance: { increment: coupon.potential_win } }
         });
 
-        // Log at
         await tx.transaction.create({
           data: {
             user_id: coupon.user_id,
@@ -142,16 +206,35 @@ export class CouponsService {
             type: 'WIN_PAYOUT'
           }
         });
-      });
-    }
+        console.log(`✅ Kupon ID ${couponId} KAZANDI! Ödeme yapıldı.`);
+      }
+    });
   }
 
-  // Yardımcı Fonksiyon: Skor kontrolü
-  private checkBetResult(betType: string, home: number, away: number): boolean {
+  // --- BAHİS MANTIĞI ---
+  private checkBetResult(
+      betType: string, 
+      home: number, 
+      away: number, 
+      htHome: number, 
+      htAway: number
+  ): boolean {
+    const totalGoals = home + away;
+
     if (betType === 'Mac Sonucu 1') return home > away;
     if (betType === 'Mac Sonucu X') return home === away;
     if (betType === 'Mac Sonucu 2') return away > home;
-    // Diğer bahis türleri buraya eklenebilir (Alt/Üst vs.)
+
+    if (betType === 'IY 1') return htHome > htAway;
+    if (betType === 'IY X') return htHome === htAway;
+    if (betType === 'IY 2') return htAway > htHome;
+    
+    if (betType === 'Alt 2.5') return totalGoals < 2.5;
+    if (betType === 'Ust 2.5') return totalGoals > 2.5;
+
+    if (betType === 'KG Var') return home > 0 && away > 0;
+    if (betType === 'KG Yok') return home === 0 || away === 0;
+
     return false;
   }
 }

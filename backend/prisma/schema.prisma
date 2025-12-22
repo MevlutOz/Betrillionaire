@@ -70,6 +70,7 @@ model League {
   name      String
   country   String
   logo      String?
+  api_id    Int?   @unique
   // İlişkiler
   teams   Team[]
   matches Match[]
@@ -82,7 +83,7 @@ model Team {
   name      String
   league_id Int
   logo      String?
-
+  api_id    Int?   @unique
   league League @relation(fields: [league_id], references: [league_id])
 
   // Bir takım ev sahibi veya deplasman olabilir
@@ -118,6 +119,10 @@ model Match {
   status       MatchStatus @default(SCHEDULED)
   home_score   Int?        @default(0)
   away_score   Int?        @default(0)
+  api_id        Int?       @unique
+
+  ht_home_score Int?      @default(0)
+  ht_away_score Int?      @default(0)
   
   season       String?     // YENİ: Sezon bilgisi (Örn: "2023-2024")
 
@@ -175,6 +180,12 @@ model Coupon {
 
   @@map("coupons")
 }
+enum BetStatus {
+  PENDING
+  WON
+  LOST
+  VOID // İptal/İade durumları için (Opsiyonel ama dursun)
+}
 
 model Bet {
   bet_id          Int    @id @default(autoincrement())
@@ -183,6 +194,8 @@ model Bet {
   bet_type        String // O anki bahis türü
   odd_value       Decimal @db.Decimal(5, 2) // Oran değişebilir, kupon oynandığı anki oranı buraya kopyalarız (Snapshot)
   selected_option String // Örn: "1", "X", "2", "Over"
+  
+  status          BetStatus @default(PENDING)
 
   coupon Coupon @relation(fields: [coupon_id], references: [coupon_id])
   match  Match  @relation(fields: [match_id], references: [match_id])

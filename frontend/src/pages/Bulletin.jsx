@@ -5,6 +5,7 @@ import { BiFootball, BiTrophy, BiWallet } from "react-icons/bi";
 import { RiCoupon3Line } from "react-icons/ri"; 
 import { MdOutlineHistory } from "react-icons/md";
 import { RiAdminLine } from "react-icons/ri"; 
+const API_URL = import.meta.env.VITE_API_URL;
 // --- RENK PALETİ ---
 const colors = {
   primaryDark: '#421F73',
@@ -60,7 +61,7 @@ export default function Bulletin() {
 
   const fetchMatches = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/matches');
+      const response = await axios.get(`${API_URL}/matches`); 
       setMatches(response.data);
       setLoading(false);
     } catch (error) {
@@ -97,11 +98,21 @@ export default function Bulletin() {
     if (coupon.length === 0) { alert("Lütfen en az bir maç seçin."); return; }
     if (user.balance < stake) { alert("Yetersiz bakiye!"); return; }
 
+    console.log("Kullanıcı Objesi:", user);
     try {
-      const payload = { userId: user.id, stake: stake, bets: coupon };
-      const response = await axios.post('http://localhost:3000/coupons', payload);
+      const activeUserId = user.user_id || user.userId|| user.id;
+      const payload = { 
+        userId: activeUserId,
+        stake: stake, 
+        bets: coupon 
+      };
+      if (!activeUserId) {
+         alert("Kullanıcı ID bulunamadı! Lütfen tekrar giriş yapın.");
+         return;
+      }
 
-      if (response.status === 201) {
+      const response = await axios.post(`${API_URL}/coupons`, payload); 
+      if (response.status === 200 || response.status === 201) {
         alert(`Kupon Başarıyla Oynandı!`);
         setCoupon([]);
         // Bakiyeyi güncelle
@@ -117,8 +128,10 @@ export default function Bulletin() {
     }
   };
 
-  const totalOdds = coupon.reduce((acc, item) => acc * item.odd_value, 1).toFixed(2);
-  const potentialWin = (totalOdds * stake).toFixed(2);
+  const totalOdds = coupon.reduce((acc, item) => acc * Number(item.odd_value), 1);
+
+  const potentialWin = totalOdds * Number(stake);
+
   const isSelected = (matchId, betType) => coupon.some(item => item.match_id === matchId && item.bet_type === betType);
   const getOddValue = (matchOdds, type) => {
     const odd = matchOdds.find(o => o.bet_type === type);
@@ -297,9 +310,9 @@ export default function Bulletin() {
             ))}
           </div>
           <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: `1px solid rgba(255,255,255,0.1)` }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: colors.greyText }}><span>Toplam Oran:</span><span style={{ color: colors.tealSuccess, fontWeight: 'bold' }}>{totalOdds}</span></div>
-            <div style={{ marginBottom: '15px' }}><label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85em', color: colors.greyText }}>Bahis Tutarı (TL)</label><input type="number" value={stake} onChange={(e) => setStake(Number(e.target.value))} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: 'rgba(255,255,255,0.1)', color: colors.white, fontWeight: 'bold', textAlign: 'center' }} /></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' }}><span style={{ fontSize: '0.9em', color: colors.greyText }}>Olası Kazanç</span><span style={{ fontWeight: 'bold', color: colors.tealSuccess, fontSize: '1.4em' }}>{potentialWin} TL</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: colors.greyText }}><span>Toplam Oran:</span><span style={{ color: colors.tealSuccess, fontWeight: 'bold' }}>{totalOdds.toFixed(2)}</span></div>
+            <div style={{ marginBottom: '15px' }}><label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85em', color: colors.greyText }}>Bahis Tutarı (TL)</label><input type="number" value={stake} onChange={(e) => { const val = Number(e.target.value);if (val > 0) setStake(val);}} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: 'none', backgroundColor: 'rgba(255,255,255,0.1)', color: colors.white, fontWeight: 'bold', textAlign: 'center' }} /></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' }}><span style={{ fontSize: '0.9em', color: colors.greyText }}>Olası Kazanç</span><span style={{ fontWeight: 'bold', color: colors.tealSuccess, fontSize: '1.4em' }}>{potentialWin.toFixed(2)} TL</span></div>
             <button disabled={coupon.length === 0} onClick={handlePlaceBet} style={{ width: '100%', padding: '16px', backgroundColor: coupon.length > 0 ? colors.tealSuccess : 'rgba(255,255,255,0.05)', color: coupon.length > 0 ? '#1a1a1a' : 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: coupon.length > 0 ? 'pointer' : 'not-allowed', boxShadow: coupon.length > 0 ? `0 4px 20px ${colors.tealSuccess}55` : 'none' }}>{coupon.length > 0 ? 'KUPONU OYNA' : 'MAÇ SEÇİNİZ'}</button>
           </div>
         </div>
@@ -327,6 +340,23 @@ const MatchDetailModal = ({ match, onClose, addToCoupon, isSelected, getOddValue
     { title: "Karşılıklı Gol", types: [{k:'KG Var', l:'Var'}, {k:'KG Yok', l:'Yok'}] },
   ];
 
+  // KAPATMA BUTONU İÇİN GENİŞ VE RAHAT STİL
+  const closeButtonStyle = {
+    position: 'absolute',
+    top: '10px',        // Biraz daha yukarı aldık
+    right: '10px',      // Biraz daha sağa yanaştırdık
+    background: 'transparent',
+    border: 'none',
+    color: 'white',
+    fontSize: '1.8em',  // İkonu büyüttük
+    cursor: 'pointer',
+    padding: '10px',    // ÖNEMLİ: Tıklama alanını genişletir (Hitbox)
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,        // Her şeyin üstünde olsun
+  };
+
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -341,17 +371,27 @@ const MatchDetailModal = ({ match, onClose, addToCoupon, isSelected, getOddValue
       }} onClick={e => e.stopPropagation()}>
         
         {/* Header */}
-        <div style={{ backgroundColor: '#421F73', padding: '20px', color: 'white', borderTopLeftRadius:'16px', borderTopRightRadius:'16px', position:'sticky', top:0, zIndex:10 }}>
-          <button onClick={onClose} style={{position:'absolute', right:'20px', top:'20px', background:'none', border:'none', color:'white', fontSize:'1.5em', cursor:'pointer'}}>✕</button>
-          <div style={{textAlign:'center', fontSize:'0.9em', opacity:0.8}}>{match.league.name}</div>
-          <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginTop: '10px' }}>
-            <div style={{textAlign:'center'}}>
-              <div style={{fontSize:'1.2em', fontWeight:'bold'}}>{match.homeTeam.name}</div>
-            </div>
-            <div style={{fontSize:'0.9em', backgroundColor:'rgba(255,255,255,0.2)', padding:'5px 10px', borderRadius:'10px'}}>VS</div>
-            <div style={{textAlign:'center'}}>
-               <div style={{fontSize:'1.2em', fontWeight:'bold'}}>{match.awayTeam.name}</div>
-            </div>
+        <div style={{ 
+            backgroundColor: '#421F73', 
+            padding: '25px 20px', // Header yüksekliğini biraz artırdık ferah olsun diye
+            color: 'white', 
+            borderTopLeftRadius:'16px', 
+            borderTopRightRadius:'16px', 
+            position:'sticky', 
+            top:0, 
+            zIndex:10,
+            textAlign: 'center' // Başlıkları ortaladık
+        }}>
+          
+          {/* GÜNCELLENMİŞ KAPATMA BUTONU */}
+          <button onClick={onClose} style={closeButtonStyle}>✕</button>
+          
+          <div style={{fontSize:'0.9em', opacity:0.8, marginBottom:'5px'}}>{match.league.name}</div>
+          
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px' }}>
+            <div style={{fontSize:'1.2em', fontWeight:'bold', flex:1, textAlign:'right'}}>{match.homeTeam.name}</div>
+            <div style={{fontSize:'0.8em', backgroundColor:'rgba(255,255,255,0.2)', padding:'4px 8px', borderRadius:'6px', fontWeight:'bold'}}>VS</div>
+            <div style={{fontSize:'1.2em', fontWeight:'bold', flex:1, textAlign:'left'}}>{match.awayTeam.name}</div>
           </div>
         </div>
 
@@ -374,7 +414,8 @@ const MatchDetailModal = ({ match, onClose, addToCoupon, isSelected, getOddValue
                         border: active ? '1px solid #5550F2' : '1px solid #eee',
                         backgroundColor: active ? '#5550F2' : '#f9f9f9',
                         color: active ? 'white' : '#333',
-                        display:'flex', flexDirection:'column', alignItems:'center', gap:'4px'
+                        display:'flex', flexDirection:'column', alignItems:'center', gap:'4px',
+                        transition: 'transform 0.1s' // Hafif basma efekti
                       }}
                     >
                       <span style={{fontSize:'0.8em', opacity: active?0.9:0.6}}>{type.l}</span>

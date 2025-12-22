@@ -1,19 +1,19 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config'; // <-- BU VAR MI?
+import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { MatchesModule } from './matches/matches.module';
 import { CouponsModule } from './coupons/coupons.module';
-import { TransactionsModule } from './transactions/transactions.module';
 import { SyncModule } from './sync/sync.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { LeaguesModule } from './leagues/leagues.module';
-
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { TransactionsModule } from './transactions/transactions.module';
+import { UsersController } from './users.controller';
 @Module({
   imports: [
-    // 1. BU KISIM ÇOK ÖNEMLİ (ENV Dosyasını Yükler)
     ConfigModule.forRoot({
-      isGlobal: true,    // Her yerden erişilsin
-      envFilePath: '.env', // Dosya yolunu zorla göster
+      isGlobal: true,   
     }),
     
     AuthModule,
@@ -23,6 +23,12 @@ import { LeaguesModule } from './leagues/leagues.module';
     SyncModule,
     PrismaModule,
     LeaguesModule,
+    
   ],
+  controllers: [
+    AppController, 
+    UsersController
+  ],
+  providers: [AppService],
 })
 export class AppModule {}

@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify'; // YENİ
 
-// --- RENK PALETİ ---
+const API_URL = import.meta.env.VITE_API_URL;
+
 const colors = {
-  bg: '#421F73',            // Arkaplan Mor
-  cardBg: '#FFFFFF',        // Kart Rengi Beyaz
-  primary: '#2BD9B9',       // Buton Rengi (Teal)
-  textDark: '#331859',      // Koyu Yazılar
-  textLight: '#8A8EA6',     // Gri Yazılar
-  inputBg: '#F4F6F8'        // Input Zemini
+  bg: '#421F73',
+  cardBg: '#FFFFFF',
+  primary: '#2BD9B9',
+  textDark: '#331859',
+  textLight: '#8A8EA6',
+  inputBg: '#F4F6F8'
 };
 
 export default function Login() {
@@ -22,131 +24,80 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Eski token varsa temizle (Hata verip girme sorununu çözer)
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+
     try {
-      const response = await axios.post('http://localhost:3000/auth/login', formData);
-      localStorage.setItem('token', response.data.access_token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      alert('Giriş Başarılı!');
-      navigate('/dashboard');
+      const response = await axios.post(`${API_URL}/auth/login`, formData);
+
+      // Sadece 200 veya 201 gelirse başarılı say
+      if (response.status === 200 || response.status === 201) {
+        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        
+        toast.success(`Hoş geldin, ${response.data.user.name || 'Kullanıcı'}!`); // Şık mesaj
+        navigate('/bulletin'); // Dashboard yerine bültene gitsin, daha mantıklı
+      }
     } catch (error) {
-      alert('Giriş Başarısız: ' + (error.response?.data?.message || 'Bilgileri kontrol edin'));
+      console.error("Login Hatası:", error);
+      // Backend'den gelen özel mesajı göster, yoksa genel hata
+      const message = error.response?.data?.message || 'Giriş yapılamadı. Bilgileri kontrol edin.';
+      toast.error(message);
     }
   };
 
   return (
     <div style={styles.container}>
-      
-      {/* ORTALANMIŞ KART */}
       <div style={styles.card}>
-        
-        {/* LOGO & BAŞLIK */}
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <img src="/betrillionaire.png" alt="Logo" style={{ height: '60px', marginBottom: '10px' }} />
-          <h2 style={{ color: colors.textDark, margin: 0, fontSize: '1.8em' }}>Giriş Yap</h2>
-          <p style={{ color: colors.textLight, fontSize: '0.9em', marginTop: '5px' }}>
-            Hesabına erişmek için bilgilerini gir.
-          </p>
-        </div>
-
-        {/* FORM */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <h2 style={{ textAlign: 'center', color: colors.textDark, marginBottom: '20px' }}>Giriş Yap</h2>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
           <div style={styles.inputGroup}>
             <label style={styles.label}>Email</label>
             <input 
-              name="email" 
               type="email" 
-              placeholder="ornek@mail.com" 
-              onChange={handleChange} 
-              required 
+              name="email" 
+              placeholder="ornek@email.com" 
+              value={formData.email}
+              onChange={handleChange}
               style={styles.input}
+              required
             />
           </div>
 
           <div style={styles.inputGroup}>
             <label style={styles.label}>Şifre</label>
             <input 
-              name="password" 
               type="password" 
+              name="password" 
               placeholder="••••••" 
-              onChange={handleChange} 
-              required 
+              value={formData.password}
+              onChange={handleChange}
               style={styles.input}
+              required
             />
           </div>
 
-          <button type="submit" style={styles.button}>
-            GİRİŞ YAP
-          </button>
+          <button type="submit" style={styles.button}>GİRİŞ YAP</button>
         </form>
 
-        {/* KAYIT OL YÖNLENDİRMESİ */}
-        <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.9em', color: colors.textLight }}>
-          Hesabın yok mu?{' '}
-          <span 
-            onClick={() => navigate('/register')} 
-            style={{ color: colors.primary, fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}
-          >
-            Kayıt Ol
-          </span>
+        <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.9em' }}>
+          Hesabın yok mu? <span onClick={() => navigate('/register')} style={{ color: colors.primary, fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}>Kayıt Ol</span>
         </div>
-
       </div>
     </div>
   );
 }
 
-// STİLLER
+
+// STİLLER (Aynen kalsın)
 const styles = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.bg,
-    fontFamily: "'Roboto', sans-serif",
-    padding: '20px'
-  },
-  card: {
-    backgroundColor: colors.cardBg,
-    padding: '40px',
-    borderRadius: '20px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-    width: '100%',
-    maxWidth: '400px',
-  },
-  inputGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '5px'
-  },
-  label: {
-    fontSize: '0.85em',
-    fontWeight: 'bold',
-    color: colors.textDark,
-    marginLeft: '5px'
-  },
-  input: {
-    padding: '12px 15px',
-    borderRadius: '10px',
-    border: '1px solid #eee',
-    backgroundColor: colors.inputBg,
-    fontSize: '1em',
-    outline: 'none',
-    transition: 'border 0.2s',
-    color: '#333'
-  },
-  button: {
-    marginTop: '10px',
-    padding: '14px',
-    backgroundColor: colors.primary,
-    color: '#fff',
-    border: 'none',
-    borderRadius: '10px',
-    fontSize: '1em',
-    fontWeight: 'bold',
-    cursor: 'pointer',
-    transition: 'transform 0.1s, box-shadow 0.2s',
-    boxShadow: `0 4px 15px ${colors.primary}66`
-  }
+  container: { minHeight: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg, fontFamily: "'Roboto', sans-serif", padding: '20px' },
+  card: { backgroundColor: colors.cardBg, padding: '40px', borderRadius: '20px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', width: '100%', maxWidth: '400px' },
+  inputGroup: { display: 'flex', flexDirection: 'column', gap: '5px' },
+  label: { fontSize: '0.85em', fontWeight: 'bold', color: colors.textDark, marginLeft: '5px' },
+  input: { padding: '12px 15px', borderRadius: '10px', border: '1px solid #ddd', backgroundColor: colors.inputBg, fontSize: '1em', outline: 'none' },
+  button: { padding: '15px', backgroundColor: colors.primary, color: '#fff', border: 'none', borderRadius: '10px', fontSize: '1.1em', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px', boxShadow: '0 4px 15px rgba(43, 217, 185, 0.4)' }
 };

@@ -8,15 +8,17 @@ import Leagues from './pages/Leagues';
 import LeagueDetails from './pages/LeagueDetails';
 import AdminPanel from './pages/AdminPanel';
 import Results from './pages/Results'; 
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function App() {
   return (
     <Router>
+      <ToastContainer position="top-right" autoClose={3000} />
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        
         {/* Dashboard yerine bu ikisi geldi */}
         <Route path="/bulletin" element={<Bulletin />} />
         <Route path="/my-coupons" element={<MyCoupons />} />

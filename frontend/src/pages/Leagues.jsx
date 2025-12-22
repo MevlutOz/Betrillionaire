@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const colors = {
   primaryDark: '#421F73',
@@ -19,7 +20,7 @@ export default function Leagues() {
 
   // 1. Sayfa açılınca Ligleri Çek
   useEffect(() => {
-    axios.get('http://localhost:3000/leagues').then(res => {
+    axios.get(`${API_URL}/leagues`).then(res => {
       setLeagues(res.data);
       // İlk ligi otomatik seç
       if(res.data.length > 0) handleSelectLeague(res.data[0]);
@@ -31,7 +32,7 @@ export default function Leagues() {
     setSelectedLeague(league);
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:3000/leagues/${league.league_id}/standings`);
+      const res = await axios.get(`${API_URL}/leagues/${league.league_id}/standings`);
       setStandings(res.data);
     } catch (err) {
       console.error(err);

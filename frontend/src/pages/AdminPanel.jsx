@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const colors = {
   primaryDark: '#421F73',
@@ -28,7 +29,7 @@ export default function AdminPanel() {
 
   const fetchMatches = async () => {
     try {
-      const response = await axios.get('http://localhost:3000/matches'); // Sadece Scheduled olanlar gelir
+      const response = await axios.get(`${API_URL}/matches`);
       setMatches(response.data);
       setLoading(false);
     } catch (error) {
@@ -50,7 +51,7 @@ export default function AdminPanel() {
     try {
       // Token'ı Header'a ekle (Backend Guard için şart)
       const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:3000/matches/${matchId}/finish`, 
+      await axios.post(`${API_URL}/matches/${matchId}/finish`, 
         { homeScore, awayScore },
         { headers: { Authorization: `Bearer ${token}` } }
       );

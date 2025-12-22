@@ -3,11 +3,14 @@ import { SyncService } from './sync.service';
 import { SyncController } from './sync.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ConfigModule } from '@nestjs/config';  
+import { CouponsModule } from '../coupons/coupons.module'; 
+
 
 @Module({
   imports: [
     PrismaModule, 
-    ConfigModule 
+    ConfigModule,
+    CouponsModule 
   ], 
   controllers: [SyncController],
   providers: [SyncService],
