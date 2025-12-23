@@ -46,7 +46,7 @@ export class MatchesService {
     });
   }
 
-  // 2. Tek Bir Maçın Detayını Getir (ID ile)
+  // Tek Bir Maçın Detayını Getir ID ile
   async findOne(id: number) {
     const match = await this.prisma.match.findUnique({
       where: { match_id: id },
@@ -65,7 +65,7 @@ export class MatchesService {
     return match;
   }
 
-  // 3.SEZONA GÖRE MAÇLARI GETİR 
+  // SEZONA GÖRE MAÇLARI GETİR 
   async findBySeason(season: string) {
     return this.prisma.match.findMany({
       where: { season: season },
@@ -103,7 +103,6 @@ export class MatchesService {
 
     console.log(`${pendingCoupons.length} adet kupon yeniden değerlendirilecek.`);
 
-    // Her kuponu tek tek hesapla
     for (const coupon of pendingCoupons) {
       await this.couponsService.evaluateCoupon(coupon.coupon_id);
     }

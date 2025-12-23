@@ -33,7 +33,7 @@ export class AuthService {
         email: registerDto.email,
         password_hash: hashedPassword,
         name: registerDto.name,
-        // Balance default 0 gelir, is_admin false gelir
+        // Balance default 0 gelir is_admin false gelir
       },
     });
 
@@ -57,7 +57,7 @@ export class AuthService {
       throw new UnauthorizedException('Email veya şifre hatalı');
     }
 
-    // Token (JWT) oluştur
+    // Token oluştur
     const payload = {
       sub: user.user_id,
       email: user.email,

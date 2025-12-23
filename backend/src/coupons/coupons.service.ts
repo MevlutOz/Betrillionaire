@@ -48,12 +48,12 @@ export class CouponsService {
         
         // Kullanıcıyı bul
         const user = await tx.user.findUnique({
-          where: { user_id: userId } // Prisma modelindeki alan adı (genelde user_id)
+          where: { user_id: userId } 
         });
 
         if (!user) throw new BadRequestException('Kullanıcı bulunamadı');
 
-        // Decimal dönüşümleri (Finansal işlemler için şart)
+        // Decimal dönüşümleri
         const stakeDecimal = new Prisma.Decimal(stake);
 
         // Bakiye Kontrolü
@@ -70,7 +70,7 @@ export class CouponsService {
         // Olası Kazanç
         const potentialWin = stakeDecimal.mul(totalOdds);
 
-        // A. Kullanıcı Bakiyesini Düş
+        // Kullanıcı Bakiyesini Düş
         await tx.user.update({
           where: { user_id: userId },
           data: {
@@ -78,7 +78,7 @@ export class CouponsService {
           }
         });
 
-        // B. İşlem Geçmişi (Transaction Log) Oluştur
+        // Transaction Log Oluştur
         await tx.transaction.create({
           data: {
             user_id: userId,
@@ -87,7 +87,7 @@ export class CouponsService {
           }
         });
 
-        // C. Kuponu ve Bahisleri Oluştur
+        // Kuponu ve bahisleri Oluştur
         const newCoupon = await tx.coupon.create({
           data: {
             user_id: userId,
@@ -97,7 +97,7 @@ export class CouponsService {
             status: 'PENDING',
             bets: {
               create: bets.map((bet: any) => ({
-                match_id: Number(bet.match_id), // String gelme ihtimaline karşı Number()
+                match_id: Number(bet.match_id), 
                 bet_type: bet.bet_type,
                 odd_value: new Prisma.Decimal(bet.odd_value),
                 selected_option: bet.selected_option,
@@ -112,17 +112,15 @@ export class CouponsService {
       });
 
     } catch (err) {
-      console.error('❌ Kupon Oluşturma Hatası:', err);
-      // Eğer hata bizim attığımız BadRequest ise aynen fırlat
+      console.error('Kupon Oluşturma Hatası:', err);
       if (err instanceof BadRequestException) {
         throw err;
       }
-      // Değilse genel hata fırlat
       throw new InternalServerErrorException('Kupon oluşturulurken sunucu hatası: ' + err.message);
     }
   }
 
-  // --- KULLANICI KUPONLARI ---
+  // KULLANICI KUPONLARI
   async findAllByUser(userId: number) {
     return this.prisma.coupon.findMany({
       where: { user_id: userId },
@@ -139,7 +137,7 @@ export class CouponsService {
     });
   }
 
-  // --- KUPON DEĞERLENDİRME ---
+  // KUPON DEĞERLENDİRME
   async evaluateCoupon(couponId: number) {
     const coupon = await this.prisma.coupon.findUnique({
       where: { coupon_id: couponId },
@@ -186,7 +184,7 @@ export class CouponsService {
           where: { coupon_id: couponId },
           data: { status: 'LOST' }
         });
-        console.log(`❌ Kupon ID ${couponId} KAYBETTİ.`);
+        console.log(`Kupon ID ${couponId} KAYBETTİ.`);
 
       } else if (allWon) {
         await tx.coupon.update({
@@ -211,7 +209,7 @@ export class CouponsService {
     });
   }
 
-  // --- BAHİS MANTIĞI ---
+  // Bahis logic
   private checkBetResult(
       betType: string, 
       home: number, 

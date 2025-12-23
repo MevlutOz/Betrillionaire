@@ -52,7 +52,7 @@ export class SyncService {
     }
   }
   
-    */
+  */
    // SONUÇLARI GÜNCELLEME
   async syncResults() {
   const apiToken = this.configService.get<string>('SPORTMONKS_API_TOKEN');
@@ -354,7 +354,6 @@ export class SyncService {
                       home_team_id: homeTeam.team_id,
                       away_team_id: awayTeam.team_id,
                       match_date: {
-                          // Gün bazında arama yapıyoruz
                           gte: new Date(new Date(matchDate).setHours(0,0,0,0)),
                           lte: new Date(new Date(matchDate).setHours(23,59,59,999))
                       }
@@ -371,8 +370,6 @@ export class SyncService {
                     api_id: item.id, 
                     match_date: matchDate,
                     season: seasonName,
-                    // Eğer maç API'de bitmişse burada durumu da güncelleyebiliriz ama
-                    // SyncResults zaten ID gelince bunu halledecek. Biz sadece ID'yi verelim yeter.
                 }
             });
           } else {
@@ -403,7 +400,7 @@ export class SyncService {
     return { message: 'Sync Completed (Recovery Mode)', details: resultsLog, totalProcessed: totalProcessed };
   }
 
-  // YARDIMCI METOTLAR
+  // YARDIMCI METODLAR
   async clearFixtures() {
     try {
       await this.prisma.odds.deleteMany({}); await this.prisma.bet.deleteMany({}); await this.prisma.coupon.deleteMany({});

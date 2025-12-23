@@ -9,7 +9,6 @@ generator client {
 }
 
 // --- ENUMS (Sabit Değerler) ---
-// Veri bütünlüğü ve kodda hata yapmamak için status alanlarını Enum yaptık.
 enum Role {
   USER
   ADMIN
@@ -124,7 +123,7 @@ model Match {
   ht_home_score Int?      @default(0)
   ht_away_score Int?      @default(0)
   
-  season       String?     // YENİ: Sezon bilgisi (Örn: "2023-2024")
+  season       String?     
 
   // İlişkiler
   league   League @relation(fields: [league_id], references: [league_id])
@@ -162,7 +161,7 @@ model PlayerMatchStats {
   player Player @relation(fields: [player_id], references: [player_id])
   match  Match  @relation(fields: [match_id], references: [match_id])
 
-  @@unique([player_id, match_id]) // Bir oyuncunun bir maçta sadece bir istatistik satırı olabilir
+  @@unique([player_id, match_id]) 
   @@map("player_match_stats")
 }
 
@@ -184,7 +183,7 @@ enum BetStatus {
   PENDING
   WON
   LOST
-  VOID // İptal/İade durumları için (Opsiyonel ama dursun)
+  VOID 
 }
 
 model Bet {
